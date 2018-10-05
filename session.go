@@ -845,3 +845,60 @@ func (session *Session) Unscoped() *Session {
 	session.statement.Unscoped()
 	return session
 }
+
+// MakePage 分页
+func (session *Session) MakePage(params PageParams, columns ...string) *Session {
+	if params.Limit() != nil {
+		session.Limit(params.Limit()[0], params.Limit()[1])
+	}
+	// 排序
+	sort := func(columns ...string) {
+		if params.Asc() == true {
+			session.Asc(columns...)
+		} else {
+			session.Desc(columns...)
+		}
+	}
+	switch {
+	case params.OrderBy() != "":
+		// 优先级最高:前端传了Order字段,按前端的排序
+		sort(Camel2Underline(params.OrderBy()))
+	case len(columns) > 0:
+		// 优先级其次,表中存在并明确表示需要排序的字段,例如update_time
+		sort(columns...)
+	default:
+		// 优先级最次,id,有分页的数据都会有id
+		sort("id")
+	}
+	return session
+}
+
+// TimeFilter 给orm的session补充时间过滤条件
+func (session *Session) TimeFilter(timeParam string, startTime, endTime int) {
+	if startTime > 0 && endTime > 0 {
+		session.Where(timeParam+" >= ?", startTime).
+			And(timeParam+" <= ?", endTime)
+	} else if startTime > 0 && endTime == 0 {
+		session.Where(timeParam+" >= ?", startTime)
+	} else if startTime == 0 && endTime > 0 {
+		session.Where(timeParam+" <= ?", endTime)
+	}
+}
+
+// Camel2Underline:snake string, XxYy to xx_yy , XxYY to xx_yy
+func Camel2Underline(s string) string {
+	data := make([]byte, 0, len(s)*2)
+	j := false
+	num := len(s)
+	for i := 0; i < num; i++ {
+		d := s[i]
+		if i > 0 && d >= 'A' && d <= 'Z' && j {
+			data = append(data, '_')
+		}
+		if d != '_' {
+			j = true
+		}
+		data = append(data, d)
+	}
+	return strings.ToLower(string(data[:]))
+}
